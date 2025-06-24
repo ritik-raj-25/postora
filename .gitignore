@@ -1,0 +1,45 @@
+# Maven target directory
+/target/
+
+# Eclipse, IntelliJ, VSCode settings
+/.classpath
+/.project
+/.settings/
+/.idea/
+/*.iml
+/.vscode/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment files
+.env
+.env.*
+
+# Uploaded files (custom folder like your uploads dir)
+uploads/
+
+# Maven wrapper
+.mvn/
+!/.mvn/wrapper/maven-wrapper.jar
+mvnw
+mvnw.cmd
+
+# Backup and temp files
+*.swp
+*~
+*.bak
+
+# Java build artifacts
+*.class
+*.jar
+*.war
+*.ear
+
+# Others
+*.db
+*.sqlite
