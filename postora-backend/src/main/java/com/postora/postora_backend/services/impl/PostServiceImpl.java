@@ -1,13 +1,11 @@
 package com.postora.postora_backend.services.impl;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,8 +34,6 @@ import com.postora.postora_backend.services.FileStorageService;
 import com.postora.postora_backend.services.PostService;
 import com.postora.postora_backend.utils.PagedResponse;
 
-import jakarta.servlet.http.HttpServletRequest;
-
 @Service
 public class PostServiceImpl implements PostService{
 	
@@ -47,12 +43,11 @@ public class PostServiceImpl implements PostService{
 	private TagRepository tagRepository;
 	private ModelMapper modelMapper;
 	private FileStorageService fileStorageService;
-	private HttpServletRequest http;
 	private EmailService emailService;
 	
 	public PostServiceImpl(UserRepository userRepository, PostRepository postRepository,
 			CategoryRepository categoryRepository, TagRepository tagRepository, ModelMapper modelMapper,
-			FileStorageService fileStorageService, HttpServletRequest http, EmailService emailService) {
+			FileStorageService fileStorageService, EmailService emailService) {
 		super();
 		this.userRepository = userRepository;
 		this.postRepository = postRepository;
@@ -60,15 +55,11 @@ public class PostServiceImpl implements PostService{
 		this.tagRepository = tagRepository;
 		this.modelMapper = modelMapper;
 		this.fileStorageService = fileStorageService;
-		this.http = http;
 		this.emailService = emailService;
 	}
 
-	@Value("${project.image}")
-	private String path;
-
 	@Override
-	public ViewPostDto createPost(CreatePostDto createPostDto) throws IOException {
+	public ViewPostDto createPost(CreatePostDto createPostDto){
 		String email = SecurityContextHolder.getContext().getAuthentication().getName();
 		User user = userRepository.findByEmail(email).orElseThrow(() -> new UserNotFoundException("User with email: " + email + " doesn't exist"));
 		Category category = categoryRepository.findById(createPostDto.getCategoryId()).orElseThrow(() -> new CategoryNotFoundException("Category with id: " + createPostDto.getCategoryId() + " doesn't exist"));
@@ -78,7 +69,7 @@ public class PostServiceImpl implements PostService{
 		
 		String fileName = "";
 		if(createPostDto.getCoverImage() != null) {
-			fileStorageService.saveFile(path, createPostDto.getCoverImage());
+			fileName = fileStorageService.saveFile(createPostDto.getCoverImage());
 		}
 		
 		Set<Tag> tags = new HashSet<>();
@@ -91,7 +82,6 @@ public class PostServiceImpl implements PostService{
 		tags.forEach(post :: addTag); // for adding entity to join table
 		post.setUser(user);
 		post.setCategory(category);
-		//System.out.println("Post id before save: " + post.getId());
 		Post savedPost = postRepository.save(post);
 		emailService.sendPostCreationEmail(email, savedPost.getUser().getName());
 		return getPostById(savedPost.getId());
@@ -151,7 +141,9 @@ public class PostServiceImpl implements PostService{
 		
 		new HashSet<>(post.getTags()).forEach(post :: removeTag); //for removing entries from join table
 		
-		fileStorageService.deleteFile(path, path);
+		if(!post.getCoverImagePath().equals("")) {
+			fileStorageService.deleteFile(post.getCoverImagePath());
+		}
 		
 		postRepository.delete(post);
 		emailService.sendPostDeletionEmail(email, post.getUser().getName(), "ROLE_USER", post.getTitle());
@@ -161,7 +153,9 @@ public class PostServiceImpl implements PostService{
 	public void deletePostByAdmin(Long id) {
 		Post post = postRepository.findById(id).orElseThrow(() -> new PostNotFoundException("Post with id: " + id + " doesn't exist"));
 		new HashSet<>(post.getTags()).forEach(post :: removeTag); //for removing entries from join table
-		fileStorageService.deleteFile(path, post.getCoverImagePath());
+		if(!post.getCoverImagePath().equals("")) {
+			fileStorageService.deleteFile(post.getCoverImagePath());
+		}
 		postRepository.delete(post);
 		emailService.sendPostDeletionEmail(post.getUser().getEmail(), post.getUser().getName(), "ROLE_ADMIN", post.getTitle());
 	}
@@ -242,7 +236,7 @@ public class PostServiceImpl implements PostService{
 		dto.setUserId(post.getUser().getId());
 		dto.setUserName(post.getUser().getEmail());
 		if(!post.getCoverImagePath().equals("")) {
-			dto.setCoverImageUrl(getBaseUrl(http) + "/images/" + post.getCoverImagePath());
+			dto.setCoverImageUrl(fileStorageService.getFile(post.getCoverImagePath()));
 		}
 		else {
 			dto.setCoverImageUrl("");
@@ -251,9 +245,5 @@ public class PostServiceImpl implements PostService{
 		dto.setBookmarkCount(post.getBookmarks().size());
 		dto.setCommentCount(post.getComments().size());
 		return dto;
-	}
-	
-	private String getBaseUrl(HttpServletRequest http) {
-		return http.getScheme() + "://" + http.getServerName() + ":" + http.getServerPort();
 	}
 }

@@ -1,14 +1,11 @@
 package com.postora.postora_backend.controllers;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.URI;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.util.StreamUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,12 +22,10 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import com.postora.postora_backend.dtos.CreatePostDto;
 import com.postora.postora_backend.dtos.UpdatePostDto;
 import com.postora.postora_backend.dtos.ViewPostDto;
-import com.postora.postora_backend.services.FileStorageService;
 import com.postora.postora_backend.services.PostService;
 import com.postora.postora_backend.utils.AppConstant;
 import com.postora.postora_backend.utils.PagedResponse;
 
-import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -39,17 +34,12 @@ import jakarta.validation.constraints.NotBlank;
 @Validated
 public class PostController {
 	
-	private FileStorageService fileStorageService;
 	private PostService postService;
 	
-	public PostController(FileStorageService fileStorageService, PostService postService) {
+	public PostController(PostService postService) {
 		super();
-		this.fileStorageService = fileStorageService;
 		this.postService = postService;
 	}
-
-	@Value("${project.image}")
-	private String path;
 	
 	@PostMapping(value="/posts", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
 	@PreAuthorize("hasRole('ROLE_USER')")
@@ -160,12 +150,5 @@ public class PostController {
 	@PreAuthorize("hasRole('ROLE_ADMIN')")
 	public void deletePostByAdmin(@PathVariable Long  postId) {
 		postService.deletePostByAdmin(postId);
-	}
-	
-	@GetMapping("/images/{imageName}")
-	public void serveImage(@PathVariable String imageName, HttpServletResponse response) throws IOException {
-		InputStream inputStream = fileStorageService.getFile(path, imageName);
-		response.setContentType("image/jpeg");
-		StreamUtils.copy(inputStream, response.getOutputStream());
 	}
 }

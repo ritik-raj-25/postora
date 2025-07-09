@@ -1,72 +1,82 @@
 package com.postora.postora_backend.services.impl;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.postora.postora_backend.exceptions.InvalidFileTypeException;
 import com.postora.postora_backend.services.FileStorageService;
 
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
 @Service
 public class FileStorageServiceImpl implements  FileStorageService{
+	
+	@Value("${aws.bucketName}")
+	private String bucketName;
+	
+	@Value("${aws.region}")
+	private String region;
+	
+	private S3Client s3Client;
+	
+	public FileStorageServiceImpl(S3Client s3Client) {
+		super();
+		this.s3Client = s3Client;
+	}
 
 	@Override
-	public String saveFile(String path, MultipartFile file) throws IOException {
-		// get file name
-		String fileName = file.getOriginalFilename();
+	public String saveFile(MultipartFile file) {
+		// get original file name
+		String originalFileName = file.getOriginalFilename();
 		
 		// check for image (.jpg, .jpeg, .png)
-		String fileExtension = fileName.substring(fileName.lastIndexOf('.'));
-		if(!fileExtension.equals(".jpg") && !fileExtension.equals(".jpeg") && !fileExtension.equals(".png")) {
+		String fileExtension = file.getContentType();
+		System.out.println(fileExtension);
+		if(!fileExtension.equals("image/jpg") && !fileExtension.equals("image/jpeg") && !fileExtension.equals("image/png")) {
 			throw new InvalidFileTypeException("Upload either of .jpg, .jpeg, or .png file only");
 		}
 		
 		// generate new file name
-		String newFileName = UUID.randomUUID().toString()
-											  .concat(fileName);
+		String newFileName = UUID.randomUUID().toString() + "_" + originalFileName;
+											  
+		// Build meta-data of object
+		PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+				.bucket(bucketName)
+				.key(newFileName)
+				.contentType(file.getContentType())
+				.build();
 		
-		// create full path
-		Path fullPath = Paths.get(path, newFileName);
-		
-		// create directory if not already exist
-		File fileObj = new File(path);
-		if(!fileObj.exists()) {
-			fileObj.mkdirs();
+		try {
+			s3Client.putObject(putObjectRequest, RequestBody.fromBytes(file.getBytes()));
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
-		
-		//save file
-		Files.copy(file.getInputStream(), fullPath);
 		
 		return newFileName;
+	}
+
+	@Override
+	public String getFile(String fileName) {
+		
+		return "https://" + bucketName + ".s3." + region + ".amazonaws.com/" + fileName;
 		
 	}
 
 	@Override
-	public InputStream getFile(String path, String fileName) throws IOException {
-		// get full path
-		Path fullPath = Paths.get(path, fileName);
+	public void deleteFile(String fileName) {
+		DeleteObjectRequest deleteObjectRequest = DeleteObjectRequest.builder()
+				.bucket(bucketName)
+				.key(fileName)
+				.build();
 		
-		//get input stream
-		InputStream inputStream = new FileInputStream(fullPath.toFile());
-		
-		return inputStream;
-	}
-
-	@Override
-	public void deleteFile(String path, String fileName) {
-		Path fullPath = Paths.get(path, fileName);
-		File file = fullPath.toFile();
-		if(file.exists()) {
-			file.delete();
-		}
+		s3Client.deleteObject(deleteObjectRequest);
 	}
 
 }
